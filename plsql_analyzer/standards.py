@@ -30,6 +30,13 @@ STANDARDS = {
             "comment_density": "At least 5% of non-blank lines must be descriptive comments (-- or /* */)",
             "parameter_docs": "Each parameter must be documented with its purpose and valid values",
             "modification_log": "Significant changes should be logged in the header with date and author",
+            "version_history": (
+                "Package/package body must include a '-- HISTORIA:' block immediately after the "
+                "package header, with entries in descending order (newest first) following the format: "
+                "'-- H<N>   - <initials> - DD-MM-YYYY', each entry followed by a ticket reference "
+                "(e.g., '--        TI-2685 - Title') and one or more description lines. "
+                "Example: -- H1   - RM - 23-09-2025 / --        TI-2685 - Title / --        Action taken."
+            ),
         }
     },
     "error_handling": {
@@ -158,4 +165,5 @@ RULE_SEVERITY = {
     "no_duplicate_error_messages": "MEDIUM",
     "end_label_required": "LOW",
     "no_dead_code_blocks": "LOW",
+    "version_history": "MEDIUM",
 }

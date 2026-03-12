@@ -330,6 +330,103 @@ def check_documentation(code: str) -> str:
                 ),
             })
 
+    # --- Rule: Version history (HISTORIA block) ---
+    # Only check at the package level (PACKAGE BODY or standalone PACKAGE IS/AS)
+    _HISTORIA_BLOCK_RE = re.compile(r"--\s*HISTORIA\s*:", re.IGNORECASE)
+    _HISTORIA_ENTRY_RE = re.compile(
+        r"--\s+H(\d+)\s+-\s+(\w+)\s+-\s+(\d{2}-\d{2}-\d{4})",
+        re.IGNORECASE,
+    )
+
+    pkg_header = re.search(
+        r"CREATE\s+(?:OR\s+REPLACE\s+)?PACKAGE\s+(?:BODY\s+)?(\w+)\s+(?:IS|AS)",
+        code,
+        re.IGNORECASE,
+    )
+    if pkg_header:
+        pkg_name = pkg_header.group(1)
+        pkg_line = code[: pkg_header.start()].count("\n") + 1
+        # Search within the first 3 000 characters after the package header
+        search_window = code[pkg_header.start(): pkg_header.start() + 3000]
+
+        historia_match = _HISTORIA_BLOCK_RE.search(search_window)
+        if not historia_match:
+            violations.append({
+                "line": pkg_line,
+                "severity": RULE_SEVERITY["version_history"],
+                "rule": "documentation.version_history",
+                "message": (
+                    f"Package '{pkg_name}' (line {pkg_line}) is missing a '-- HISTORIA:' "
+                    f"version history block. Add it immediately after the package header "
+                    f"with entries in format: -- H<N>   - <initials> - DD-MM-YYYY"
+                ),
+            })
+        else:
+            historia_abs_line = (
+                code[: pkg_header.start() + historia_match.start()].count("\n") + 1
+            )
+            # Content after the "-- HISTORIA:" marker up to end of search window
+            after_historia = search_window[historia_match.end():]
+
+            entries = list(_HISTORIA_ENTRY_RE.finditer(after_historia))
+
+            if not entries:
+                violations.append({
+                    "line": historia_abs_line,
+                    "severity": RULE_SEVERITY["version_history"],
+                    "rule": "documentation.version_history",
+                    "message": (
+                        f"'-- HISTORIA:' block at line {historia_abs_line} has no valid entries. "
+                        f"Each entry must follow: -- H<N>   - <initials> - DD-MM-YYYY"
+                    ),
+                })
+            else:
+                # Entries must be in descending order (H3, H2, H1, H0 …)
+                entry_nums = [int(e.group(1)) for e in entries]
+                if entry_nums != sorted(entry_nums, reverse=True):
+                    violations.append({
+                        "line": historia_abs_line,
+                        "severity": RULE_SEVERITY["version_history"],
+                        "rule": "documentation.version_history",
+                        "message": (
+                            f"'-- HISTORIA:' entries starting at line {historia_abs_line} "
+                            f"are not in descending order ({entry_nums}). "
+                            f"The newest entry (highest H number) must appear first."
+                        ),
+                    })
+
+                # Each entry must have at least one ticket/detail line after it
+                for entry in entries:
+                    entry_abs_line = (
+                        code[: pkg_header.start() + historia_match.end() + entry.start()]
+                        .count("\n") + 1
+                    )
+                    # Grab text until the next entry header or an empty -- line
+                    body_start = entry.end()
+                    next_entry = _HISTORIA_ENTRY_RE.search(after_historia[body_start:])
+                    body_end = (
+                        body_start + next_entry.start()
+                        if next_entry
+                        else body_start + 500
+                    )
+                    entry_body = after_historia[body_start:body_end]
+
+                    # A ticket line looks like:  "--        TI-1234 …"  or  "--   TI-1234 …"
+                    has_ticket = bool(
+                        re.search(r"--\s{2,}\w+-\d+", entry_body)
+                    )
+                    if not has_ticket:
+                        violations.append({
+                            "line": entry_abs_line,
+                            "severity": "LOW",
+                            "rule": "documentation.version_history",
+                            "message": (
+                                f"History entry H{entry.group(1)} at line {entry_abs_line} "
+                                f"is missing a ticket reference line "
+                                f"(expected format: --        TI-XXXX - Description)"
+                            ),
+                        })
+
     # Check comment density (minimum 5% of non-blank lines)
     MIN_COMMENT_DENSITY = 0.05
     non_blank_lines = [l for l in lines if l.strip()]
