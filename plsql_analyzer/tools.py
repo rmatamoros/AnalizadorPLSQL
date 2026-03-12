@@ -726,10 +726,12 @@ def check_code_quality(code: str) -> str:
     blocks = _extract_blocks(code)
     all_named_blocks = blocks["procedures"] + blocks["functions"]
     for block_name, block_line in all_named_blocks:
+        # Compute character offset to the declaration line
+        block_start_idx = sum(len(l) + 1 for l in lines[: block_line - 1])
         # Search for END <name>; (case-insensitive) anywhere after the declaration
         if not re.search(
             r"\bEND\s+" + re.escape(block_name) + r"\s*;",
-            code[code.split("\n", block_line)[-1] if block_line > 0 else 0:],
+            code[block_start_idx:],
             re.IGNORECASE,
         ):
             violations.append({
