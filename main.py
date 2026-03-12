@@ -4,6 +4,11 @@ PL/SQL Standards Analyzer - Main Entry Point.
 
 Usage:
     python main.py <file.sql>              Analyze a PL/SQL file
+    python main.py <file.pkb>              Analyze a Package Body (file-type rules apply)
+    python main.py <file.pks>              Analyze a Package Specification
+    python main.py <file.prc>              Analyze a Standalone Procedure
+    python main.py <file.fnc>              Analyze a Standalone Function
+    python main.py <file.trg>              Analyze a Trigger
     python main.py <file.sql> --verbose    Show detailed tool output
     python main.py --demo                  Run with the included example file
     python main.py --help                  Show this help message
@@ -20,6 +25,7 @@ Example:
 import sys
 import os
 from plsql_analyzer.agent import analyze_file, analyze_plsql_code
+from plsql_analyzer.standards import FILE_TYPE_RULES
 
 
 def print_help():
@@ -55,7 +61,10 @@ def main():
         print_help()
         sys.exit(1)
 
+    ext = os.path.splitext(file_path)[1].lower() or ".sql"
+    type_info = FILE_TYPE_RULES.get(ext, FILE_TYPE_RULES[".sql"])
     print(f"Analyzing: {file_path}")
+    print(f"File type: {ext}  —  {type_info['description']}")
     print("=" * 60)
 
     report = analyze_file(file_path, verbose=verbose)

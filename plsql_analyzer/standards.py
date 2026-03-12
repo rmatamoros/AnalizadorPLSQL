@@ -139,6 +139,86 @@ STANDARDS = {
     },
 }
 
+FILE_TYPE_RULES = {
+    ".pkb": {
+        "description": "Oracle Package Body — contains procedure and function implementations",
+        "applies": "all",
+        "not_applicable": [],
+        "additional_checks": [],
+    },
+    ".pks": {
+        "description": "Oracle Package Specification — public interface declarations only, no executable code",
+        "applies": [
+            "naming_conventions",
+            "documentation.header",
+            "documentation.version_history",
+            "documentation.comment_density",
+        ],
+        "not_applicable": [
+            "error_handling",          # no BEGIN/END executable blocks
+            "documentation.parameter_logging",   # no procedure bodies
+            "performance",             # no executable code
+            "transaction_control",     # no executable code
+            "code_quality.no_dead_code_blocks",
+            "code_quality.end_label_required",
+            "code_quality.no_duplicate_error_messages",
+        ],
+        "additional_checks": [],
+    },
+    ".prc": {
+        "description": "Oracle Standalone Procedure — a single stored procedure",
+        "applies": "all",
+        "not_applicable": [
+            "documentation.version_history",  # version history is a package-level concern
+        ],
+        "additional_checks": [
+            "Standalone procedures must have CREATE OR REPLACE PROCEDURE at the top",
+        ],
+    },
+    ".fnc": {
+        "description": "Oracle Standalone Function — a single stored function",
+        "applies": "all",
+        "not_applicable": [
+            "documentation.version_history",  # version history is a package-level concern
+        ],
+        "additional_checks": [
+            "Standalone functions must have CREATE OR REPLACE FUNCTION at the top",
+            "Functions must always return a value on every code path",
+        ],
+    },
+    ".trg": {
+        "description": "Oracle Database Trigger — fires automatically on DML or DDL events",
+        "applies": [
+            "naming_conventions",
+            "documentation.header",
+            "documentation.comment_density",
+            "error_handling.exception_block",
+            "error_handling.no_silent_exceptions",
+            "error_handling.error_logging_standard",
+            "code_quality.no_select_star",
+            "security",
+        ],
+        "not_applicable": [
+            "documentation.version_history",   # not a package
+            "documentation.parameter_logging", # triggers have no explicit parameters
+            "transaction_control.no_commit_in_loops",
+            "performance.bulk_operations",
+        ],
+        "additional_checks": [
+            "Triggers must NEVER contain COMMIT or ROLLBACK (causes ORA-04092)",
+            "Avoid complex logic in triggers — delegate to package procedures",
+            "PRAGMA AUTONOMOUS_TRANSACTION only allowed for audit/error logging",
+            "Triggers on high-volume tables must be minimal to avoid performance impact",
+        ],
+    },
+    ".sql": {
+        "description": "Generic SQL/PL/SQL script — apply all rules; object type inferred from content",
+        "applies": "all",
+        "not_applicable": [],
+        "additional_checks": [],
+    },
+}
+
 SEVERITY_LEVELS = {
     "CRITICAL": "Must be fixed — security risk or data integrity issue",
     "HIGH": "Should be fixed — significant quality or reliability issue",

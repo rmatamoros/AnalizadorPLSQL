@@ -7,7 +7,7 @@ These tools are registered with the Anthropic beta tool runner.
 
 import re
 from anthropic import beta_tool
-from .standards import RULE_SEVERITY
+from .standards import RULE_SEVERITY, FILE_TYPE_RULES
 
 
 def _find_line_number(code: str, pattern: str, flags: int = re.IGNORECASE) -> list[int]:
@@ -974,6 +974,138 @@ def check_security(code: str) -> str:
             result += f"    Code: {v['code_snippet']}\n"
         result += "\n"
     return result
+
+
+@beta_tool
+def check_file_type_context(code: str, file_type: str) -> str:
+    """
+    Identify file-type-specific rules and run object-type-specific validations.
+
+    Different Oracle object types have different applicable standards:
+    - .pkb  Package Body: all rules apply
+    - .pks  Package Specification: no executable code, skip error/performance rules
+    - .prc  Standalone Procedure: no version_history, must have CREATE OR REPLACE PROCEDURE
+    - .fnc  Standalone Function: no version_history, must always return a value
+    - .trg  Trigger: no COMMIT/ROLLBACK, no PARAMETROS block, minimal logic
+
+    Args:
+        code: The PL/SQL source code to analyze.
+        file_type: File extension including the dot (e.g., '.pkb', '.pks', '.prc', '.fnc', '.trg').
+    """
+    ext = file_type.lower().strip()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    # Normalize unknown extensions to .sql
+    if ext not in FILE_TYPE_RULES:
+        ext = ".sql"
+
+    rules = FILE_TYPE_RULES[ext]
+    violations = []
+    lines = code.split("\n")
+
+    output = f"FILE TYPE: {ext}  —  {rules['description']}\n"
+    output += "=" * 60 + "\n\n"
+
+    # List applicable vs. not-applicable rules
+    if rules["applies"] == "all":
+        output += "RULE SCOPE: All standard rules apply.\n"
+    else:
+        output += f"RULE SCOPE: Only the following rule categories apply:\n"
+        for r in rules["applies"]:
+            output += f"  ✓ {r}\n"
+
+    if rules["not_applicable"]:
+        output += "\nNOT APPLICABLE for this file type (skip these checks):\n"
+        for r in rules["not_applicable"]:
+            output += f"  ✗ {r}\n"
+
+    if rules["additional_checks"]:
+        output += "\nADDITIONAL RULES specific to this file type:\n"
+        for r in rules["additional_checks"]:
+            output += f"  • {r}\n"
+
+    output += "\nFILE-TYPE-SPECIFIC VIOLATIONS:\n"
+    output += "-" * 40 + "\n"
+
+    # ── .pks: must NOT contain BEGIN/END executable blocks ──────────────────
+    if ext == ".pks":
+        begin_matches = [
+            i + 1 for i, l in enumerate(lines)
+            if re.search(r"^\s*BEGIN\b", l, re.IGNORECASE) and
+            not l.strip().startswith("--")
+        ]
+        if begin_matches:
+            violations.append(
+                f"[HIGH] Lines {begin_matches}: Package specification (.pks) should not "
+                f"contain executable BEGIN blocks — move implementation to the .pkb file."
+            )
+
+    # ── .prc: must start with CREATE OR REPLACE PROCEDURE ───────────────────
+    if ext == ".prc":
+        if not re.search(r"CREATE\s+(OR\s+REPLACE\s+)?PROCEDURE\b", code, re.IGNORECASE):
+            violations.append(
+                "[MEDIUM] File does not contain CREATE OR REPLACE PROCEDURE. "
+                "A .prc file should define exactly one standalone procedure."
+            )
+
+    # ── .fnc: must start with CREATE OR REPLACE FUNCTION ────────────────────
+    if ext == ".fnc":
+        if not re.search(r"CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\b", code, re.IGNORECASE):
+            violations.append(
+                "[MEDIUM] File does not contain CREATE OR REPLACE FUNCTION. "
+                "A .fnc file should define exactly one standalone function."
+            )
+        # Functions must have at least one RETURN <value> statement in the body
+        # (exclude the "RETURN <type>" in the function signature)
+        body_match = re.search(r"\bBEGIN\b", code, re.IGNORECASE)
+        body_src = code[body_match.start():] if body_match else code
+        if not re.search(r"\bRETURN\s+\S", body_src, re.IGNORECASE):
+            violations.append(
+                "[HIGH] No RETURN <value> statement found in function body. "
+                "Every function must return a value on every code path."
+            )
+
+    # ── .trg: must NOT contain COMMIT or ROLLBACK ────────────────────────────
+    if ext == ".trg":
+        for i, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("--"):
+                continue
+            if re.search(r"\bCOMMIT\b", stripped, re.IGNORECASE):
+                violations.append(
+                    f"[CRITICAL] Line {i}: COMMIT inside a trigger causes ORA-04092. "
+                    f"Remove COMMIT or use PRAGMA AUTONOMOUS_TRANSACTION only for "
+                    f"logging in a separate procedure."
+                )
+            if re.search(r"\bROLLBACK\b", stripped, re.IGNORECASE):
+                violations.append(
+                    f"[CRITICAL] Line {i}: ROLLBACK inside a trigger causes ORA-04092. "
+                    f"Remove explicit ROLLBACK — the trigger's parent transaction handles rollback."
+                )
+
+        # Trigger must start with CREATE OR REPLACE TRIGGER
+        if not re.search(r"CREATE\s+(OR\s+REPLACE\s+)?TRIGGER\b", code, re.IGNORECASE):
+            violations.append(
+                "[MEDIUM] File does not contain CREATE OR REPLACE TRIGGER. "
+                "A .trg file should define exactly one trigger."
+            )
+
+        # Warn if trigger body is unusually large (>100 non-blank lines)
+        non_blank = [l for l in lines if l.strip() and not l.strip().startswith("--")]
+        if len(non_blank) > 100:
+            violations.append(
+                f"[MEDIUM] Trigger body has {len(non_blank)} non-blank lines — "
+                f"triggers should be minimal. Move business logic to a package procedure "
+                f"and call it from the trigger."
+            )
+
+    if not violations:
+        output += "PASS: No file-type-specific violations found.\n"
+    else:
+        output += "\n".join(violations) + "\n"
+
+    return output
 
 
 @beta_tool
