@@ -50,8 +50,9 @@ def check_naming_conventions(code: str) -> str:
     Analyze PL/SQL code for naming convention violations.
 
     Checks that variables use vPascalCase format (e.g., vCodEmpresa, vFecha),
-    parameters use p_ prefix, constants use c_/gc_ prefix, cursors use cur_
-    prefix, and exceptions use e_/ex_ prefix.
+    parameters use pPascalCase format (e.g., pCodEmpresa, pCentroD, pFecha),
+    constants use c_/gc_ prefix, cursors use cur_ prefix, and exceptions
+    use e_/ex_ prefix.
 
     Args:
         code: The PL/SQL source code to analyze.
@@ -88,6 +89,24 @@ def check_naming_conventions(code: str) -> str:
                     "severity": RULE_SEVERITY["variables"],
                     "rule": "naming_conventions.variables",
                     "message": f"Variable '{var_match.group(1)}' should use vPascalCase format (e.g., vCodEmpresa, vFecha, vCentroD)",
+                    "code_snippet": stripped[:80],
+                })
+
+        # Check parameter declarations (PROCEDURE/FUNCTION signature lines)
+        param_match = re.match(
+            r"(\w+)\s+(?:IN\s+OUT|IN|OUT)\s+(?:NOCOPY\s+)?\w+",
+            stripped,
+            re.IGNORECASE,
+        )
+        if param_match:
+            param_name = param_match.group(1)
+            reserved = {"return", "is", "as", "procedure", "function"}
+            if param_name.lower() not in reserved and not re.match(r"^p[A-Z]", param_name):
+                violations.append({
+                    "line": i,
+                    "severity": RULE_SEVERITY["parameters"],
+                    "rule": "naming_conventions.parameters",
+                    "message": f"Parameter '{param_name}' should use pPascalCase format (e.g., pCodEmpresa, pCentroD, pFecha)",
                     "code_snippet": stripped[:80],
                 })
 

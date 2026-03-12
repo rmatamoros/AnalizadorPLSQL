@@ -9,7 +9,7 @@ STANDARDS = {
         "description": "Naming conventions for PL/SQL identifiers",
         "rules": {
             "variables": "Local variables must use prefix 'v' followed by PascalCase (e.g., vCodEmpresa, vCentroD, vFecha)",
-            "parameters": "Parameters must use prefix 'p_' (e.g., p_employee_id, p_salary)",
+            "parameters": "Parameters must use prefix 'p' followed by PascalCase (e.g., pCodEmpresa, pCentroD, pFecha)",
             "constants": "Constants must use prefix 'c_' or 'gc_' (e.g., c_max_retries, gc_schema)",
             "cursors": "Cursors must use prefix 'cur_' or 'c_' (e.g., cur_employees)",
             "exceptions": "Custom exceptions must use prefix 'e_' or 'ex_' (e.g., e_invalid_data)",
