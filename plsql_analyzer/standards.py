@@ -59,6 +59,13 @@ STANDARDS = {
             ),
             "error_logging": "Errors should be logged with SQLERRM, SQLCODE, and context information",
             "reraise": "WHEN OTHERS should re-raise with RAISE or use RAISE_APPLICATION_ERROR",
+            "error_logging_standard": (
+                "Every WHEN OTHERS handler must call ManejoError.InsertarBitacoraError() "
+                "passing pCodSistema, pDetalleError (with SQLERRM), and pDetParametros. "
+                "Example: pDetError := 'Error en <procedure>. ' || SQLERRM; "
+                "ManejoError.InsertarBitacoraError(pCodSistema => <sys>, "
+                "pDetalleError => pDetError, pDetParametros => vDetParam);"
+            ),
         }
     },
     "code_quality": {
@@ -170,6 +177,7 @@ RULE_SEVERITY = {
     "inline_comments": "LOW",
     "commit_placement": "MEDIUM",
     "autonomous_transactions": "MEDIUM",
+    "error_logging_standard": "HIGH",
     "no_duplicate_error_messages": "MEDIUM",
     "end_label_required": "LOW",
     "no_dead_code_blocks": "LOW",

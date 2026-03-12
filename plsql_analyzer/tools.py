@@ -259,6 +259,57 @@ def check_error_handling(code: str) -> str:
                 "message": f"Procedure/Function '{block_name}' (line {block_line}) is missing an EXCEPTION block",
             })
 
+    # --- Rule: Standard error logging via ManejoError.InsertarBitacoraError ---
+    # Every WHEN OTHERS handler must call ManejoError.InsertarBitacoraError()
+    # with pCodSistema, pDetalleError (containing SQLERRM), and pDetParametros.
+    _INSERTAR_BITACORA_RE = re.compile(
+        r"ManejoError\s*\.\s*InsertarBitacoraError\s*\(",
+        re.IGNORECASE,
+    )
+    _PDET_ERROR_RE = re.compile(r"\bpDetError\b", re.IGNORECASE)
+
+    for match in re.finditer(r"WHEN\s+OTHERS\s+THEN", code, re.IGNORECASE):
+        line_num = code[: match.start()].count("\n") + 1
+        # Extract handler body: from THEN up to next WHEN or END (max 800 chars)
+        body_start = match.end()
+        body_end = min(body_start + 800, len(code))
+        raw_body = code[body_start:body_end]
+        # Trim at the next handler boundary
+        boundary = re.search(r"\bWHEN\b|\bEND\b", raw_body, re.IGNORECASE)
+        handler_body = raw_body[: boundary.start()] if boundary else raw_body
+
+        has_insertar = bool(_INSERTAR_BITACORA_RE.search(handler_body))
+        has_pdet_error = bool(_PDET_ERROR_RE.search(handler_body))
+
+        if not has_insertar:
+            missing_parts = []
+            if not has_pdet_error:
+                missing_parts.append("pDetError assignment with SQLERRM")
+            missing_parts.append("ManejoError.InsertarBitacoraError() call")
+            violations.append({
+                "line": line_num,
+                "severity": RULE_SEVERITY["error_logging_standard"],
+                "rule": "error_handling.error_logging_standard",
+                "message": (
+                    f"WHEN OTHERS handler at line {line_num} is missing: "
+                    f"{' and '.join(missing_parts)}. "
+                    f"Expected pattern: pDetError := 'Error en <proc>. ' || SQLERRM; "
+                    f"ManejoError.InsertarBitacoraError(pCodSistema => ..., "
+                    f"pDetalleError => pDetError, pDetParametros => vDetParam);"
+                ),
+            })
+        elif not has_pdet_error:
+            violations.append({
+                "line": line_num,
+                "severity": "MEDIUM",
+                "rule": "error_handling.error_logging_standard",
+                "message": (
+                    f"WHEN OTHERS handler at line {line_num} calls InsertarBitacoraError "
+                    f"but pDetError does not appear to be assigned with SQLERRM before the call. "
+                    f"Ensure: pDetError := 'Error en <proc>. ' || SQLERRM;"
+                ),
+            })
+
     if not violations:
         return "PASS: No error handling violations found."
 
