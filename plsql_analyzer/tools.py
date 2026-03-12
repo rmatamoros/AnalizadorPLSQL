@@ -49,9 +49,9 @@ def check_naming_conventions(code: str) -> str:
     """
     Analyze PL/SQL code for naming convention violations.
 
-    Checks that variables use v_/l_ prefix, parameters use p_ prefix,
-    constants use c_/gc_ prefix, cursors use cur_ prefix, and exceptions
-    use e_/ex_ prefix.
+    Checks that variables use vPascalCase format (e.g., vCodEmpresa, vFecha),
+    parameters use p_ prefix, constants use c_/gc_ prefix, cursors use cur_
+    prefix, and exceptions use e_/ex_ prefix.
 
     Args:
         code: The PL/SQL source code to analyze.
@@ -82,12 +82,12 @@ def check_naming_conventions(code: str) -> str:
                 "else", "elsif", "loop", "while", "for", "cursor", "procedure",
                 "function", "package", "type", "subtype", "pragma",
             }
-            if var_name not in reserved and not re.match(r"^(v_|l_|p_|c_|gc_|g_)", var_name):
+            if var_name not in reserved and not re.match(r"^v[A-Z]", var_match.group(1)):
                 violations.append({
                     "line": i,
                     "severity": RULE_SEVERITY["variables"],
                     "rule": "naming_conventions.variables",
-                    "message": f"Variable '{var_match.group(1)}' should use prefix v_, l_, p_, c_, or gc_",
+                    "message": f"Variable '{var_match.group(1)}' should use vPascalCase format (e.g., vCodEmpresa, vFecha, vCentroD)",
                     "code_snippet": stripped[:80],
                 })
 
