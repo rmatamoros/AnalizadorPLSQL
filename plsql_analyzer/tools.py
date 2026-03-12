@@ -367,8 +367,9 @@ def check_code_quality(code: str) -> str:
     Analyze PL/SQL code for general code quality issues.
 
     Checks for SELECT *, missing type anchoring (%TYPE/%ROWTYPE),
-    magic numbers/strings, line length violations, and other
-    code quality issues.
+    magic numbers/strings, line length violations, duplicate error messages
+    in exception handlers, missing END labels, and large commented-out
+    code blocks (dead code).
 
     Args:
         code: The PL/SQL source code to analyze.
@@ -440,6 +441,108 @@ def check_code_quality(code: str) -> str:
                     f"consider using %TYPE or %ROWTYPE for maintainability"
                 ),
                 "code_snippet": match.group(0).strip()[:80],
+            })
+
+    # --- Rule: Duplicate error messages in EXCEPTION handlers ---
+    # Extract pDetError := '...' and similar error string assignments
+    error_msg_pattern = re.finditer(
+        r"(?:pDetError|vDetError|v_det_error)\s*:=\s*'([^']{10,})'",
+        code,
+        re.IGNORECASE,
+    )
+    error_msg_occurrences: dict = {}
+    for match in error_msg_pattern:
+        msg = match.group(1).strip().lower()
+        line_num = code[:match.start()].count("\n") + 1
+        error_msg_occurrences.setdefault(msg, []).append(line_num)
+
+    for msg, occurrences in error_msg_occurrences.items():
+        if len(occurrences) > 1:
+            lines_str = ", ".join(str(l) for l in occurrences)
+            violations.append({
+                "line": occurrences[0],
+                "severity": RULE_SEVERITY["no_duplicate_error_messages"],
+                "rule": "code_quality.no_duplicate_error_messages",
+                "message": (
+                    f"Duplicate error message found on lines {lines_str}: "
+                    f"'{msg[:60]}...' — each procedure must have a unique message "
+                    f"identifying it as the error source"
+                ),
+            })
+
+    # --- Rule: END label required for procedures and functions ---
+    blocks = _extract_blocks(code)
+    all_named_blocks = blocks["procedures"] + blocks["functions"]
+    for block_name, block_line in all_named_blocks:
+        # Search for END <name>; (case-insensitive) anywhere after the declaration
+        if not re.search(
+            r"\bEND\s+" + re.escape(block_name) + r"\s*;",
+            code[code.split("\n", block_line)[-1] if block_line > 0 else 0:],
+            re.IGNORECASE,
+        ):
+            violations.append({
+                "line": block_line,
+                "severity": RULE_SEVERITY["end_label_required"],
+                "rule": "code_quality.end_label_required",
+                "message": (
+                    f"Procedure/Function '{block_name}' (line {block_line}) "
+                    f"appears to close with END; instead of END {block_name}; — "
+                    f"add the name for readability in large packages"
+                ),
+            })
+
+    # --- Rule: No dead code blocks (commented-out code > 10 consecutive lines) ---
+    DEAD_CODE_THRESHOLD = 10
+    CODE_KEYWORDS = re.compile(
+        r"\b(SELECT|INSERT|UPDATE|DELETE|MERGE|BEGIN|END|IF|THEN|ELSE|"
+        r"LOOP|CURSOR|PROCEDURE|FUNCTION|RETURN|COMMIT|ROLLBACK)\b",
+        re.IGNORECASE,
+    )
+
+    # Check consecutive -- comment lines containing code keywords
+    consecutive_comment_start = None
+    consecutive_code_comments = 0
+
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        is_code_comment = (
+            stripped.startswith("--") and
+            bool(CODE_KEYWORDS.search(stripped[2:]))
+        )
+        if is_code_comment:
+            if consecutive_comment_start is None:
+                consecutive_comment_start = i
+            consecutive_code_comments += 1
+        else:
+            if consecutive_code_comments >= DEAD_CODE_THRESHOLD:
+                violations.append({
+                    "line": consecutive_comment_start,
+                    "severity": RULE_SEVERITY["no_dead_code_blocks"],
+                    "rule": "code_quality.no_dead_code_blocks",
+                    "message": (
+                        f"Dead code block detected: {consecutive_code_comments} consecutive "
+                        f"commented-out lines starting at line {consecutive_comment_start} — "
+                        f"remove dead code and use version control history instead"
+                    ),
+                })
+            consecutive_comment_start = None
+            consecutive_code_comments = 0
+
+    # Check /* ... */ blocks spanning more than DEAD_CODE_THRESHOLD lines
+    block_comment_matches = re.finditer(r"/\*.*?\*/", code, re.DOTALL)
+    for match in block_comment_matches:
+        block_text = match.group(0)
+        block_lines = block_text.count("\n") + 1
+        if block_lines > DEAD_CODE_THRESHOLD and CODE_KEYWORDS.search(block_text):
+            line_num = code[:match.start()].count("\n") + 1
+            violations.append({
+                "line": line_num,
+                "severity": RULE_SEVERITY["no_dead_code_blocks"],
+                "rule": "code_quality.no_dead_code_blocks",
+                "message": (
+                    f"Large commented-out block /* */ detected at line {line_num} "
+                    f"({block_lines} lines) — remove dead code and rely on version control"
+                ),
             })
 
     if not violations:

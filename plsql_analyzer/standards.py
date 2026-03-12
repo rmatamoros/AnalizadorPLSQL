@@ -58,6 +58,18 @@ STANDARDS = {
             "line_length": "Lines should not exceed 120 characters",
             "indentation": "Use consistent 2 or 3-space indentation throughout",
             "no_duplicate_code": "Repeated logic blocks should be extracted into separate procedures/functions",
+            "no_duplicate_error_messages": (
+                "Each procedure/function must have a unique error message in its EXCEPTION handler — "
+                "copy-pasted messages hide which procedure actually failed"
+            ),
+            "end_label_required": (
+                "Every PROCEDURE and FUNCTION must close with END <name>; (not just END;) "
+                "to improve readability in large packages"
+            ),
+            "no_dead_code_blocks": (
+                "Commented-out code blocks longer than 10 lines must be removed — "
+                "use version control history instead of leaving dead code in source"
+            ),
         }
     },
     "performance": {
@@ -143,4 +155,7 @@ RULE_SEVERITY = {
     "inline_comments": "LOW",
     "commit_placement": "MEDIUM",
     "autonomous_transactions": "MEDIUM",
+    "no_duplicate_error_messages": "MEDIUM",
+    "end_label_required": "LOW",
+    "no_dead_code_blocks": "LOW",
 }
