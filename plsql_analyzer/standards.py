@@ -27,6 +27,7 @@ STANDARDS = {
                 "Author, Date, Description, Parameters (for procs/funcs), Returns (for funcs)"
             ),
             "inline_comments": "Complex logic blocks must have inline comments",
+            "comment_density": "At least 5% of non-blank lines must be descriptive comments (-- or /* */)",
             "parameter_docs": "Each parameter must be documented with its purpose and valid values",
             "modification_log": "Significant changes should be logged in the header with date and author",
         }
@@ -127,6 +128,7 @@ RULE_SEVERITY = {
     "bulk_operations": "MEDIUM",
     "limit_bulk_collect": "MEDIUM",
     "header": "MEDIUM",
+    "comment_density": "MEDIUM",
     "parameter_docs": "MEDIUM",
     "error_logging": "MEDIUM",
     "specific_exceptions": "MEDIUM",

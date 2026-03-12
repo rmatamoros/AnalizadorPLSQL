@@ -275,6 +275,7 @@ def check_documentation(code: str) -> str:
 
     Checks that procedures, functions, and packages have proper header
     comments with Author, Date, Description, Parameters, and Returns sections.
+    Also verifies that at least 5% of non-blank lines are descriptive comments.
 
     Args:
         code: The PL/SQL source code to analyze.
@@ -326,6 +327,28 @@ def check_documentation(code: str) -> str:
                 "message": (
                     f"{block_type} '{block_name}' (line {block_line}) "
                     f"is missing: {', '.join(missing)}"
+                ),
+            })
+
+    # Check comment density (minimum 5% of non-blank lines)
+    MIN_COMMENT_DENSITY = 0.05
+    non_blank_lines = [l for l in lines if l.strip()]
+    comment_lines = [
+        l for l in non_blank_lines
+        if l.strip().startswith("--") or l.strip().startswith("*") or l.strip().startswith("/*")
+    ]
+    total_non_blank = len(non_blank_lines)
+    if total_non_blank > 0:
+        density = len(comment_lines) / total_non_blank
+        if density < MIN_COMMENT_DENSITY:
+            violations.append({
+                "line": 1,
+                "severity": RULE_SEVERITY["comment_density"],
+                "rule": "documentation.comment_density",
+                "message": (
+                    f"Comment density is {density:.1%} ({len(comment_lines)} comment lines / "
+                    f"{total_non_blank} non-blank lines) — minimum required is {MIN_COMMENT_DENSITY:.0%}. "
+                    f"Add descriptive comments explaining the business logic."
                 ),
             })
 
