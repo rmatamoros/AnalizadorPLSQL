@@ -37,6 +37,14 @@ STANDARDS = {
                 "(e.g., '--        TI-2685 - Title') and one or more description lines. "
                 "Example: -- H1   - RM - 23-09-2025 / --        TI-2685 - Title / --        Action taken."
             ),
+            "parameter_logging": (
+                "Every procedure and function must include a <<PARAMETROS>> labeled block that "
+                "registers each input parameter via PAPARAMETROSBITACORA.Parametro(pNombre => '<name>', "
+                "pValor => <value>, pParametros => vDetParam). Each declared parameter must appear "
+                "in its own numbered comment (-- 01 - pParam) followed by the Parametro() call. "
+                "Example: -- 01 - pNoCia / vDetParam := PAPARAMETROSBITACORA.Parametro(pNombre => 'pNoCia', "
+                "pValor => TO_CHAR(pNoCia), pParametros => vDetParam);"
+            ),
         }
     },
     "error_handling": {
@@ -166,4 +174,5 @@ RULE_SEVERITY = {
     "end_label_required": "LOW",
     "no_dead_code_blocks": "LOW",
     "version_history": "MEDIUM",
+    "parameter_logging": "MEDIUM",
 }

@@ -427,6 +427,110 @@ def check_documentation(code: str) -> str:
                             ),
                         })
 
+    # --- Rule: Parameter logging block (<<PARAMETROS>>) ---
+    # Every procedure/function inside a package body must have a <<PARAMETROS>> labeled block
+    # that calls PAPARAMETROSBITACORA.Parametro() for each declared parameter.
+    _PARAM_BLOCK_RE = re.compile(r"<<\s*PARAMETROS\s*>>", re.IGNORECASE)
+    _PARAM_CALL_RE = re.compile(
+        r"PAPARAMETROSBITACORA\s*\.\s*Parametro\s*\(\s*pNombre\s*=>\s*'(\w+)'",
+        re.IGNORECASE,
+    )
+    _PARAM_DECL_RE = re.compile(
+        r"^\s*(\w+)\s+(?:IN\s+OUT|IN|OUT)\s+(?:NOCOPY\s+)?\w+",
+        re.IGNORECASE,
+    )
+
+    for block_type, block_name, block_line in all_blocks:
+        if block_type not in ("PROCEDURE", "FUNCTION"):
+            continue
+
+        # Slice the source from the declaration line onward (up to ~500 lines)
+        block_start_idx = sum(len(l) + 1 for l in lines[: block_line - 1])
+        block_src = code[block_start_idx: block_start_idx + 15000]
+
+        # Collect declared parameters for this block (signature before BEGIN/IS/AS)
+        sig_end = re.search(r"\bBEGIN\b", block_src, re.IGNORECASE)
+        if not sig_end:
+            continue
+        signature_src = block_src[: sig_end.start()]
+        declared_params = []
+        reserved_words = {"return", "is", "as", "procedure", "function", "begin", "end"}
+
+        # 1. Multi-line style: each parameter on its own line
+        for sig_line in signature_src.split("\n"):
+            m = _PARAM_DECL_RE.match(sig_line)
+            if m and m.group(1).lower() not in reserved_words:
+                declared_params.append(m.group(1).lower())
+
+        # 2. Inline style: PROCEDURE foo(pA IN NUMBER, pB IN DATE)
+        if not declared_params:
+            inline_sig = re.search(
+                r"(?:PROCEDURE|FUNCTION)\s+\w+\s*\(([^)]+)\)",
+                signature_src,
+                re.IGNORECASE | re.DOTALL,
+            )
+            if inline_sig:
+                for part in inline_sig.group(1).split(","):
+                    m = re.match(r"\s*(\w+)\s+(?:IN\s+OUT|IN|OUT)", part, re.IGNORECASE)
+                    if m and m.group(1).lower() not in reserved_words:
+                        declared_params.append(m.group(1).lower())
+
+        if not declared_params:
+            # No parameters — nothing to log
+            continue
+
+        # Look for the <<PARAMETROS>> block inside the procedure body
+        body_src = block_src[sig_end.start():]
+        param_block = _PARAM_BLOCK_RE.search(body_src)
+
+        if not param_block:
+            violations.append({
+                "line": block_line,
+                "severity": RULE_SEVERITY["parameter_logging"],
+                "rule": "documentation.parameter_logging",
+                "message": (
+                    f"{block_type} '{block_name}' (line {block_line}) is missing the "
+                    f"<<PARAMETROS>> block to register its parameters in "
+                    f"PAPARAMETROSBITACORA. Add a labeled BEGIN/END PARAMETROS block "
+                    f"after the main BEGIN that calls PAPARAMETROSBITACORA.Parametro() "
+                    f"for each of: {', '.join(declared_params)}"
+                ),
+            })
+        else:
+            # Collect which parameters are actually registered in the block
+            # (search until END PARAMETROS)
+            param_block_start = param_block.start()
+            end_parametros = re.search(
+                r"\bEND\s+PARAMETROS\s*;", body_src[param_block_start:], re.IGNORECASE
+            )
+            search_end = (
+                param_block_start + end_parametros.end()
+                if end_parametros
+                else param_block_start + 3000
+            )
+            parametros_body = body_src[param_block_start:search_end]
+            logged_params = {
+                m.group(1).lower()
+                for m in _PARAM_CALL_RE.finditer(parametros_body)
+            }
+
+            missing_params = [p for p in declared_params if p not in logged_params]
+            if missing_params:
+                param_block_line = (
+                    code[: block_start_idx + sig_end.start() + param_block_start]
+                    .count("\n") + 1
+                )
+                violations.append({
+                    "line": param_block_line,
+                    "severity": RULE_SEVERITY["parameter_logging"],
+                    "rule": "documentation.parameter_logging",
+                    "message": (
+                        f"{block_type} '{block_name}': <<PARAMETROS>> block at line "
+                        f"{param_block_line} does not log all parameters. "
+                        f"Missing: {', '.join(missing_params)}"
+                    ),
+                })
+
     # Check comment density (minimum 5% of non-blank lines)
     MIN_COMMENT_DENSITY = 0.05
     non_blank_lines = [l for l in lines if l.strip()]
