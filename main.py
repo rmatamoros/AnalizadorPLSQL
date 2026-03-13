@@ -24,7 +24,7 @@ Example:
 
 import sys
 import os
-from plsql_analyzer.agent import analyze_file, analyze_plsql_code
+from plsql_analyzer.agent import analyze_file
 from plsql_analyzer.standards import FILE_TYPE_RULES
 
 
@@ -78,7 +78,7 @@ def main():
     report_file = file_path.rsplit(".", 1)[0] + "_report.txt"
     try:
         with open(report_file, "w", encoding="utf-8") as f:
-            f.write(f"PL/SQL Standards Compliance Report\n")
+            f.write("PL/SQL Standards Compliance Report\n")
             f.write(f"File: {file_path}\n")
             f.write("=" * 60 + "\n\n")
             f.write(report)

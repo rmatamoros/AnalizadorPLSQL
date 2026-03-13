@@ -8,8 +8,14 @@ STANDARDS = {
     "naming_conventions": {
         "description": "Naming conventions for PL/SQL identifiers",
         "rules": {
-            "variables": "Local variables must use prefix 'v' followed by PascalCase (e.g., vCodEmpresa, vCentroD, vFecha)",
-            "parameters": "Parameters must use prefix 'p' followed by PascalCase (e.g., pCodEmpresa, pCentroD, pFecha)",
+            "variables": (
+                "Local variables must use prefix 'v' followed by PascalCase"
+                " (e.g., vCodEmpresa, vCentroD, vFecha)"
+            ),
+            "parameters": (
+                "Parameters must use prefix 'p' followed by PascalCase"
+                " (e.g., pCodEmpresa, pCentroD, pFecha)"
+            ),
             "constants": "Constants must use prefix 'c_' or 'gc_' (e.g., c_max_retries, gc_schema)",
             "cursors": "Cursors must use prefix 'cur_' or 'c_' (e.g., cur_employees)",
             "exceptions": "Custom exceptions must use prefix 'e_' or 'ex_' (e.g., e_invalid_data)",
@@ -199,8 +205,8 @@ FILE_TYPE_RULES = {
             "security",
         ],
         "not_applicable": [
-            "documentation.version_history",   # not a package
-            "documentation.parameter_logging", # triggers have no explicit parameters
+            "documentation.version_history",    # not a package
+            "documentation.parameter_logging",  # triggers have no explicit parameters
             "transaction_control.no_commit_in_loops",
             "performance.bulk_operations",
         ],

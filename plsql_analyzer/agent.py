@@ -128,7 +128,7 @@ def analyze_plsql_code(code: str, verbose: bool = False, file_type: str = ".sql"
                     elif block.type == "tool_use":
                         print(f"\n[Running: {block.name}]")
                     elif block.type == "tool_result":
-                        print(f"[Tool result received]")
+                        print("[Tool result received]")
 
     if final_message is None:
         return "Error: No response received from the agent."

@@ -75,7 +75,6 @@ def check_naming_conventions(code: str = "") -> str:
 
     for i, line in enumerate(lines, 1):
         stripped = line.strip()
-        upper = stripped.upper()
 
         # Skip comments
         if stripped.startswith("--") or stripped.startswith("/*") or stripped.startswith("*"):
@@ -100,7 +99,10 @@ def check_naming_conventions(code: str = "") -> str:
                     "line": i,
                     "severity": RULE_SEVERITY["variables"],
                     "rule": "naming_conventions.variables",
-                    "message": f"Variable '{var_match.group(1)}' should use vPascalCase format (e.g., vCodEmpresa, vFecha, vCentroD)",
+                    "message": (
+                        f"Variable '{var_match.group(1)}' should use vPascalCase format"
+                        " (e.g., vCodEmpresa, vFecha, vCentroD)"
+                    ),
                     "code_snippet": stripped[:80],
                 })
 
@@ -118,7 +120,10 @@ def check_naming_conventions(code: str = "") -> str:
                     "line": i,
                     "severity": RULE_SEVERITY["parameters"],
                     "rule": "naming_conventions.parameters",
-                    "message": f"Parameter '{param_name}' should use pPascalCase format (e.g., pCodEmpresa, pCentroD, pFecha)",
+                    "message": (
+                        f"Parameter '{param_name}' should use pPascalCase format"
+                        " (e.g., pCodEmpresa, pCentroD, pFecha)"
+                    ),
                     "code_snippet": stripped[:80],
                 })
 
@@ -242,17 +247,14 @@ def check_error_handling(code: str = "") -> str:
         # Find the block in code (case-insensitive search around the declared line)
         lines = code.split("\n")
         block_start = block_line - 1
-        block_end = len(lines)
 
         # Find the END for this block
         depth = 0
         found_begin = False
         found_exception = False
-        block_code = []
 
         for j in range(block_start, min(block_start + 500, len(lines))):
             line_upper = lines[j].strip().upper()
-            block_code.append(line_upper)
 
             if re.search(r"\bBEGIN\b", line_upper) and not line_upper.startswith("--"):
                 found_begin = True
@@ -262,7 +264,6 @@ def check_error_handling(code: str = "") -> str:
             if found_begin and re.search(r"\bEND\b", line_upper) and not line_upper.startswith("--"):
                 depth -= 1
                 if depth <= 0:
-                    block_end = j
                     break
 
         if found_begin and not found_exception:
@@ -512,7 +513,7 @@ def check_documentation(code: str = "") -> str:
             continue
 
         # Slice the source from the declaration line onward (up to ~500 lines)
-        block_start_idx = sum(len(l) + 1 for l in lines[: block_line - 1])
+        block_start_idx = sum(len(ln) + 1 for ln in lines[: block_line - 1])
         block_src = code[block_start_idx: block_start_idx + 15000]
 
         # Collect declared parameters for this block (signature before BEGIN/IS/AS)
@@ -600,10 +601,10 @@ def check_documentation(code: str = "") -> str:
 
     # Check comment density (minimum 5% of non-blank lines)
     MIN_COMMENT_DENSITY = 0.05
-    non_blank_lines = [l for l in lines if l.strip()]
+    non_blank_lines = [ln for ln in lines if ln.strip()]
     comment_lines = [
-        l for l in non_blank_lines
-        if l.strip().startswith("--") or l.strip().startswith("*") or l.strip().startswith("/*")
+        ln for ln in non_blank_lines
+        if ln.strip().startswith("--") or ln.strip().startswith("*") or ln.strip().startswith("/*")
     ]
     total_non_blank = len(non_blank_lines)
     if total_non_blank > 0:
@@ -728,7 +729,7 @@ def check_code_quality(code: str = "") -> str:
 
     for msg, occurrences in error_msg_occurrences.items():
         if len(occurrences) > 1:
-            lines_str = ", ".join(str(l) for l in occurrences)
+            lines_str = ", ".join(str(n) for n in occurrences)
             violations.append({
                 "line": occurrences[0],
                 "severity": RULE_SEVERITY["no_duplicate_error_messages"],
@@ -745,7 +746,7 @@ def check_code_quality(code: str = "") -> str:
     all_named_blocks = blocks["procedures"] + blocks["functions"]
     for block_name, block_line in all_named_blocks:
         # Compute character offset to the declaration line
-        block_start_idx = sum(len(l) + 1 for l in lines[: block_line - 1])
+        block_start_idx = sum(len(ln) + 1 for ln in lines[: block_line - 1])
         # Search for END <name>; (case-insensitive) anywhere after the declaration
         if not re.search(
             r"\bEND\s+" + re.escape(block_name) + r"\s*;",
@@ -849,7 +850,6 @@ def check_performance(code: str = "") -> str:
 
     # Check for COMMIT inside loops
     loop_depth = 0
-    in_loop = False
     loop_start_lines = []
 
     for i, line in enumerate(lines, 1):
@@ -872,7 +872,10 @@ def check_performance(code: str = "") -> str:
                 "line": i,
                 "severity": RULE_SEVERITY["no_commit_in_loops"],
                 "rule": "performance.no_commit_in_loops",
-                "message": "COMMIT found inside a loop — this causes performance issues and can leave data in inconsistent state",
+                "message": (
+                    "COMMIT found inside a loop — this causes performance issues"
+                    " and can leave data in inconsistent state"
+                ),
                 "code_snippet": line.strip()[:80],
             })
 
@@ -897,12 +900,16 @@ def check_performance(code: str = "") -> str:
         line_num = code[:match.start()].count("\n") + 1
         # Check if it's inside a loop by examining surrounding context
         surrounding = code_upper[max(0, match.start() - 300):match.start()]
-        if re.search(r"\bLOOP\b", surrounding) and "BULK" not in code_upper[match.start() - 50:match.start()]:
+        bulk_window = code_upper[match.start() - 50:match.start()]
+        if re.search(r"\bLOOP\b", surrounding) and "BULK" not in bulk_window:
             violations.append({
                 "line": line_num,
                 "severity": RULE_SEVERITY["bulk_operations"],
                 "rule": "performance.bulk_operations",
-                "message": "Row-by-row FETCH inside loop detected — consider BULK COLLECT + FORALL for better performance",
+                "message": (
+                    "Row-by-row FETCH inside loop detected — consider BULK COLLECT"
+                    " + FORALL for better performance"
+                ),
                 "code_snippet": code[match.start():match.start() + 60].strip(),
             })
 
@@ -934,7 +941,6 @@ def check_security(code: str = "") -> str:
         code = _CODE_CONTEXT
     violations = []
     code_upper = code.upper()
-    lines = code.split("\n")
 
     # Check for dynamic SQL with string concatenation (SQL injection risk)
     # Patterns: EXECUTE IMMEDIATE with || concatenation
@@ -1037,7 +1043,7 @@ def check_file_type_context(code: str = "", file_type: str = ".sql") -> str:
     if rules["applies"] == "all":
         output += "RULE SCOPE: All standard rules apply.\n"
     else:
-        output += f"RULE SCOPE: Only the following rule categories apply:\n"
+        output += "RULE SCOPE: Only the following rule categories apply:\n"
         for r in rules["applies"]:
             output += f"  ✓ {r}\n"
 
@@ -1118,7 +1124,7 @@ def check_file_type_context(code: str = "", file_type: str = ".sql") -> str:
             )
 
         # Warn if trigger body is unusually large (>100 non-blank lines)
-        non_blank = [l for l in lines if l.strip() and not l.strip().startswith("--")]
+        non_blank = [ln for ln in lines if ln.strip() and not ln.strip().startswith("--")]
         if len(non_blank) > 100:
             violations.append(
                 f"[MEDIUM] Trigger body has {len(non_blank)} non-blank lines — "
@@ -1149,8 +1155,10 @@ def get_code_summary(code: str = "") -> str:
         code = _CODE_CONTEXT
     lines = code.split("\n")
     total_lines = len(lines)
-    blank_lines = sum(1 for l in lines if not l.strip())
-    comment_lines = sum(1 for l in lines if l.strip().startswith("--") or l.strip().startswith("*"))
+    blank_lines = sum(1 for ln in lines if not ln.strip())
+    comment_lines = sum(
+        1 for ln in lines if ln.strip().startswith("--") or ln.strip().startswith("*")
+    )
     code_lines = total_lines - blank_lines - comment_lines
 
     blocks = _extract_blocks(code)
