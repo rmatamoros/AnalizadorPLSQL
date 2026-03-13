@@ -9,6 +9,16 @@ import re
 from anthropic import beta_tool
 from .standards import RULE_SEVERITY, FILE_TYPE_RULES
 
+# Module-level code context so tools can be called without the code argument
+# (the model may omit it for large files; agent.py calls set_code_context first)
+_CODE_CONTEXT: str = ""
+
+
+def set_code_context(code: str) -> None:
+    """Store the code to analyze so tools can fall back to it if not passed by the model."""
+    global _CODE_CONTEXT
+    _CODE_CONTEXT = code
+
 
 def _find_line_number(code: str, pattern: str, flags: int = re.IGNORECASE) -> list[int]:
     """Return line numbers where pattern matches."""
@@ -45,7 +55,7 @@ def _extract_blocks(code: str) -> dict:
 
 
 @beta_tool
-def check_naming_conventions(code: str) -> str:
+def check_naming_conventions(code: str = "") -> str:
     """
     Analyze PL/SQL code for naming convention violations.
 
@@ -57,6 +67,8 @@ def check_naming_conventions(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
 
     lines = code.split("\n")
@@ -160,7 +172,7 @@ def check_naming_conventions(code: str) -> str:
 
 
 @beta_tool
-def check_error_handling(code: str) -> str:
+def check_error_handling(code: str = "") -> str:
     """
     Analyze PL/SQL code for error handling compliance.
 
@@ -171,6 +183,8 @@ def check_error_handling(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
     blocks = _extract_blocks(code)
 
@@ -320,7 +334,7 @@ def check_error_handling(code: str) -> str:
 
 
 @beta_tool
-def check_documentation(code: str) -> str:
+def check_documentation(code: str = "") -> str:
     """
     Analyze PL/SQL code for documentation and comment standards.
 
@@ -331,6 +345,8 @@ def check_documentation(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
     blocks = _extract_blocks(code)
     lines = code.split("\n")
@@ -614,7 +630,7 @@ def check_documentation(code: str) -> str:
 
 
 @beta_tool
-def check_code_quality(code: str) -> str:
+def check_code_quality(code: str = "") -> str:
     """
     Analyze PL/SQL code for general code quality issues.
 
@@ -626,6 +642,8 @@ def check_code_quality(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
     lines = code.split("\n")
 
@@ -812,7 +830,7 @@ def check_code_quality(code: str) -> str:
 
 
 @beta_tool
-def check_performance(code: str) -> str:
+def check_performance(code: str = "") -> str:
     """
     Analyze PL/SQL code for performance anti-patterns.
 
@@ -823,6 +841,8 @@ def check_performance(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
     code_upper = code.upper()
     lines = code.split("\n")
@@ -899,7 +919,7 @@ def check_performance(code: str) -> str:
 
 
 @beta_tool
-def check_security(code: str) -> str:
+def check_security(code: str = "") -> str:
     """
     Analyze PL/SQL code for security vulnerabilities.
 
@@ -910,6 +930,8 @@ def check_security(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     violations = []
     code_upper = code.upper()
     lines = code.split("\n")
@@ -979,7 +1001,7 @@ def check_security(code: str) -> str:
 
 
 @beta_tool
-def check_file_type_context(code: str, file_type: str) -> str:
+def check_file_type_context(code: str = "", file_type: str = ".sql") -> str:
     """
     Identify file-type-specific rules and run object-type-specific validations.
 
@@ -994,6 +1016,8 @@ def check_file_type_context(code: str, file_type: str) -> str:
         code: The PL/SQL source code to analyze.
         file_type: File extension including the dot (e.g., '.pkb', '.pks', '.prc', '.fnc', '.trg').
     """
+    if not code:
+        code = _CODE_CONTEXT
     ext = file_type.lower().strip()
     if not ext.startswith("."):
         ext = "." + ext
@@ -1111,7 +1135,7 @@ def check_file_type_context(code: str, file_type: str) -> str:
 
 
 @beta_tool
-def get_code_summary(code: str) -> str:
+def get_code_summary(code: str = "") -> str:
     """
     Generate a structural summary of the PL/SQL code.
 
@@ -1121,6 +1145,8 @@ def get_code_summary(code: str) -> str:
     Args:
         code: The PL/SQL source code to analyze.
     """
+    if not code:
+        code = _CODE_CONTEXT
     lines = code.split("\n")
     total_lines = len(lines)
     blank_lines = sum(1 for l in lines if not l.strip())

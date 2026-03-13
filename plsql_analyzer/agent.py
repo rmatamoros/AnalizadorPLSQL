@@ -15,6 +15,7 @@ from .tools import (
     check_security,
     check_file_type_context,
     get_code_summary,
+    set_code_context,
 )
 from .standards import FILE_TYPE_RULES
 
@@ -98,6 +99,9 @@ def analyze_plsql_code(code: str, verbose: bool = False, file_type: str = ".sql"
             ),
         }
     ]
+
+    # Store code in module-level context so tools work even if the model omits the argument
+    set_code_context(code)
 
     if verbose:
         print("Starting PL/SQL Standards Analysis...\n")
