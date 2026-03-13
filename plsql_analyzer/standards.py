@@ -8,8 +8,14 @@ STANDARDS = {
     "naming_conventions": {
         "description": "Naming conventions for PL/SQL identifiers",
         "rules": {
-            "variables": "Local variables must use prefix 'v_' or 'l_' (e.g., v_count, l_name)",
-            "parameters": "Parameters must use prefix 'p_' (e.g., p_employee_id, p_salary)",
+            "variables": (
+                "Local variables must use prefix 'v' followed by PascalCase"
+                " (e.g., vCodEmpresa, vCentroD, vFecha)"
+            ),
+            "parameters": (
+                "Parameters must use prefix 'p' followed by PascalCase"
+                " (e.g., pCodEmpresa, pCentroD, pFecha)"
+            ),
             "constants": "Constants must use prefix 'c_' or 'gc_' (e.g., c_max_retries, gc_schema)",
             "cursors": "Cursors must use prefix 'cur_' or 'c_' (e.g., cur_employees)",
             "exceptions": "Custom exceptions must use prefix 'e_' or 'ex_' (e.g., e_invalid_data)",
@@ -27,8 +33,24 @@ STANDARDS = {
                 "Author, Date, Description, Parameters (for procs/funcs), Returns (for funcs)"
             ),
             "inline_comments": "Complex logic blocks must have inline comments",
+            "comment_density": "At least 5% of non-blank lines must be descriptive comments (-- or /* */)",
             "parameter_docs": "Each parameter must be documented with its purpose and valid values",
             "modification_log": "Significant changes should be logged in the header with date and author",
+            "version_history": (
+                "Package/package body must include a '-- HISTORIA:' block immediately after the "
+                "package header, with entries in descending order (newest first) following the format: "
+                "'-- H<N>   - <initials> - DD-MM-YYYY', each entry followed by a ticket reference "
+                "(e.g., '--        TI-2685 - Title') and one or more description lines. "
+                "Example: -- H1   - RM - 23-09-2025 / --        TI-2685 - Title / --        Action taken."
+            ),
+            "parameter_logging": (
+                "Every procedure and function must include a <<PARAMETROS>> labeled block that "
+                "registers each input parameter via PAPARAMETROSBITACORA.Parametro(pNombre => '<name>', "
+                "pValor => <value>, pParametros => vDetParam). Each declared parameter must appear "
+                "in its own numbered comment (-- 01 - pParam) followed by the Parametro() call. "
+                "Example: -- 01 - pNoCia / vDetParam := PAPARAMETROSBITACORA.Parametro(pNombre => 'pNoCia', "
+                "pValor => TO_CHAR(pNoCia), pParametros => vDetParam);"
+            ),
         }
     },
     "error_handling": {
@@ -43,6 +65,13 @@ STANDARDS = {
             ),
             "error_logging": "Errors should be logged with SQLERRM, SQLCODE, and context information",
             "reraise": "WHEN OTHERS should re-raise with RAISE or use RAISE_APPLICATION_ERROR",
+            "error_logging_standard": (
+                "Every WHEN OTHERS handler must call ManejoError.InsertarBitacoraError() "
+                "passing pCodSistema, pDetalleError (with SQLERRM), and pDetParametros. "
+                "Example: pDetError := 'Error en <procedure>. ' || SQLERRM; "
+                "ManejoError.InsertarBitacoraError(pCodSistema => <sys>, "
+                "pDetalleError => pDetError, pDetParametros => vDetParam);"
+            ),
         }
     },
     "code_quality": {
@@ -57,6 +86,18 @@ STANDARDS = {
             "line_length": "Lines should not exceed 120 characters",
             "indentation": "Use consistent 2 or 3-space indentation throughout",
             "no_duplicate_code": "Repeated logic blocks should be extracted into separate procedures/functions",
+            "no_duplicate_error_messages": (
+                "Each procedure/function must have a unique error message in its EXCEPTION handler — "
+                "copy-pasted messages hide which procedure actually failed"
+            ),
+            "end_label_required": (
+                "Every PROCEDURE and FUNCTION must close with END <name>; (not just END;) "
+                "to improve readability in large packages"
+            ),
+            "no_dead_code_blocks": (
+                "Commented-out code blocks longer than 10 lines must be removed — "
+                "use version control history instead of leaving dead code in source"
+            ),
         }
     },
     "performance": {
@@ -104,6 +145,86 @@ STANDARDS = {
     },
 }
 
+FILE_TYPE_RULES = {
+    ".pkb": {
+        "description": "Oracle Package Body — contains procedure and function implementations",
+        "applies": "all",
+        "not_applicable": [],
+        "additional_checks": [],
+    },
+    ".pks": {
+        "description": "Oracle Package Specification — public interface declarations only, no executable code",
+        "applies": [
+            "naming_conventions",
+            "documentation.header",
+            "documentation.version_history",
+            "documentation.comment_density",
+        ],
+        "not_applicable": [
+            "error_handling",          # no BEGIN/END executable blocks
+            "documentation.parameter_logging",   # no procedure bodies
+            "performance",             # no executable code
+            "transaction_control",     # no executable code
+            "code_quality.no_dead_code_blocks",
+            "code_quality.end_label_required",
+            "code_quality.no_duplicate_error_messages",
+        ],
+        "additional_checks": [],
+    },
+    ".prc": {
+        "description": "Oracle Standalone Procedure — a single stored procedure",
+        "applies": "all",
+        "not_applicable": [
+            "documentation.version_history",  # version history is a package-level concern
+        ],
+        "additional_checks": [
+            "Standalone procedures must have CREATE OR REPLACE PROCEDURE at the top",
+        ],
+    },
+    ".fnc": {
+        "description": "Oracle Standalone Function — a single stored function",
+        "applies": "all",
+        "not_applicable": [
+            "documentation.version_history",  # version history is a package-level concern
+        ],
+        "additional_checks": [
+            "Standalone functions must have CREATE OR REPLACE FUNCTION at the top",
+            "Functions must always return a value on every code path",
+        ],
+    },
+    ".trg": {
+        "description": "Oracle Database Trigger — fires automatically on DML or DDL events",
+        "applies": [
+            "naming_conventions",
+            "documentation.header",
+            "documentation.comment_density",
+            "error_handling.exception_block",
+            "error_handling.no_silent_exceptions",
+            "error_handling.error_logging_standard",
+            "code_quality.no_select_star",
+            "security",
+        ],
+        "not_applicable": [
+            "documentation.version_history",    # not a package
+            "documentation.parameter_logging",  # triggers have no explicit parameters
+            "transaction_control.no_commit_in_loops",
+            "performance.bulk_operations",
+        ],
+        "additional_checks": [
+            "Triggers must NEVER contain COMMIT or ROLLBACK (causes ORA-04092)",
+            "Avoid complex logic in triggers — delegate to package procedures",
+            "PRAGMA AUTONOMOUS_TRANSACTION only allowed for audit/error logging",
+            "Triggers on high-volume tables must be minimal to avoid performance impact",
+        ],
+    },
+    ".sql": {
+        "description": "Generic SQL/PL/SQL script — apply all rules; object type inferred from content",
+        "applies": "all",
+        "not_applicable": [],
+        "additional_checks": [],
+    },
+}
+
 SEVERITY_LEVELS = {
     "CRITICAL": "Must be fixed — security risk or data integrity issue",
     "HIGH": "Should be fixed — significant quality or reliability issue",
@@ -127,6 +248,7 @@ RULE_SEVERITY = {
     "bulk_operations": "MEDIUM",
     "limit_bulk_collect": "MEDIUM",
     "header": "MEDIUM",
+    "comment_density": "MEDIUM",
     "parameter_docs": "MEDIUM",
     "error_logging": "MEDIUM",
     "specific_exceptions": "MEDIUM",
@@ -141,4 +263,10 @@ RULE_SEVERITY = {
     "inline_comments": "LOW",
     "commit_placement": "MEDIUM",
     "autonomous_transactions": "MEDIUM",
+    "error_logging_standard": "HIGH",
+    "no_duplicate_error_messages": "MEDIUM",
+    "end_label_required": "LOW",
+    "no_dead_code_blocks": "LOW",
+    "version_history": "MEDIUM",
+    "parameter_logging": "MEDIUM",
 }

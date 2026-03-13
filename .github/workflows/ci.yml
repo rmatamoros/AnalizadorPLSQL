@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --max-line-length=120 --statistics
+
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then
+            python -m pytest tests/ -v
+          else
+            python -c "
+          import plsql_analyzer
+          from plsql_analyzer.standards import STANDARDS, FILE_TYPE_RULES
+          from plsql_analyzer.tools import check_naming_conventions, check_documentation, check_error_handling
+          print('All imports OK')
+          assert isinstance(STANDARDS, dict), 'STANDARDS must be a dict'
+          assert isinstance(FILE_TYPE_RULES, dict), 'FILE_TYPE_RULES must be a dict'
+          print('Basic sanity checks passed')
+          "
+          fi

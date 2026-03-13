@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: ["main", "master"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate version tag
+        id: version
+        run: |
+          DATE=$(date +'%Y%m%d')
+          SHORT_SHA=$(git rev-parse --short "${{ github.event.workflow_run.head_sha }}")
+          TAG="v${DATE}-${SHORT_SHA}"
+          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build distribution package
+        run: |
+          pip install build
+          python -m build --sdist --wheel
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="${{ steps.version.outputs.TAG }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
+          else
+            CHANGES=$(git log --pretty=format:"- %s" HEAD)
+          fi
+          echo "CHANGES<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: Release ${{ steps.version.outputs.TAG }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.CHANGES }}
+          files: dist/*
+          draft: false
+          prerelease: false
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
